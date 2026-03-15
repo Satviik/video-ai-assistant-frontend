@@ -1,6 +1,17 @@
-const navItems = ["Dashboard", "Videos", "Analytics", "Settings", "More Tools"];
+import { useNavigate, useLocation } from "react-router-dom";
+
+const navItems = [
+  { name: "Dashboard", path: "/" },
+  { name: "Videos", path: "/videos" },
+  { name: "Analytics", path: "/analytics" },
+  { name: "Settings", path: "/settings" },
+  { name: "More Tools", path: "/tools" }
+];
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <aside className="flex flex-col bg-slate-950 border-r border-slate-800 w-60 md:w-64 shrink-0 h-full">
       <div className="px-5 py-5 border-b border-slate-800">
@@ -18,11 +29,13 @@ const Sidebar = () => {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {navItems.map((item, idx) => {
-          const isActive = idx === 0;
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+
           return (
             <button
-              key={item}
+              key={item.name}
+              onClick={() => navigate(item.path)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? "bg-slate-800 text-slate-50"
@@ -30,9 +43,10 @@ const Sidebar = () => {
               }`}
             >
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-800/80 text-[11px] text-slate-300">
-                {item[0]}
+                {item.name[0]}
               </span>
-              <span className="truncate">{item}</span>
+
+              <span className="truncate">{item.name}</span>
             </button>
           );
         })}
@@ -46,4 +60,3 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-

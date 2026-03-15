@@ -1,28 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import VideoPlayer from "../components/VideoPlayer";
 import ChatPanel from "../components/ChatPanel";
 import Transcript from "../components/Transcript";
 import UploadArea from "../components/UploadArea";
+import { getTranscript, uploadVideo } from "../services/api";
 
-const Dashboard = () => {
-  const [videoSource, setVideoSource] = useState(null);
-  const [phase, setPhase] = useState("upload"); // upload | processing | ready
+const Dashboard = ({ videoId, setVideoId, videoSource, setVideoSource }) => {
 
-  const hasVideo = phase === "ready" && !!videoSource;
+  const [phase, setPhase] = useState("upload");
+  const [transcriptItems, setTranscriptItems] = useState([]);
 
-  useEffect(
-    () => () => {
-      // cleanup object URL on unmount
-      setVideoSource((prev) => {
-        if (prev && prev.objectUrl) {
-          URL.revokeObjectURL(prev.objectUrl);
-        }
-        return null;
-      });
-    },
-    []
-  );
+  const videoElementRef = useRef(null);
 
   const startProcessing = (nextSource) => {
     setVideoSource((prev) => {
@@ -39,16 +28,45 @@ const Dashboard = () => {
     }, 1500);
   };
 
-  const handleFiles = (files) => {
-    if (!files || files.length === 0) return;
+  const handleFiles = async (files) => {
+    if (!files || files.length === 0 || phase === "processing") return;
     const file = files[0];
     const objectUrl = URL.createObjectURL(file);
-    startProcessing({
-      type: "file",
-      src: objectUrl,
-      objectUrl,
-      title: file.name || "Uploaded Video"
-    });
+    setPhase("processing");
+    setTranscriptItems([]);
+
+    try {
+      const uploadResponse = await uploadVideo(file);
+      const newVideoId = uploadResponse.video_id;
+      setVideoId(newVideoId || null);
+      startProcessing({
+        type: "file",
+        src: uploadResponse.video_url || objectUrl,
+        objectUrl,
+        title: uploadResponse.title || file.name || "Uploaded Video"
+      });
+
+      if (newVideoId) {
+        try {
+          const transcript = await getTranscript(newVideoId);
+          if (Array.isArray(transcript)) {
+            setTranscriptItems(
+              transcript.map((item, index) => ({
+                id: item.id || index,
+                timestamp: item.timestamp ?? item.start ?? 0,
+                text: item.text || item.content || ""
+              }))
+            );
+          }
+        } catch {
+          // ignore transcript errors for now
+        }
+      }
+    } catch (error) {
+      console.error("Upload failed:", error);
+      setPhase("upload");
+      URL.revokeObjectURL(objectUrl);
+    }
   };
 
   const handleUrl = (url) => {
@@ -59,6 +77,19 @@ const Dashboard = () => {
       title: "Video from URL"
     });
   };
+
+  const handleJumpToTimestamp = (seconds) => {
+    if (!videoElementRef.current || !Number.isFinite(seconds)) return;
+    try {
+      videoElementRef.current.currentTime = seconds;
+      if (typeof videoElementRef.current.play === "function") {
+        videoElementRef.current.play();
+      }
+    } catch {
+      // ignore seek errors
+    }
+  };
+
 
   return (
     <div className="flex h-full">
@@ -86,7 +117,7 @@ const Dashboard = () => {
         </div>
 
         <div className="flex-1 min-h-0 overflow-hidden px-4 sm:px-6 lg:px-8 pb-4 sm:pb-6">
-          {phase !== "upload" ? (
+          {videoId ? (
             <div className="flex flex-col lg:flex-row gap-6 h-full min-h-0">
               {/* Video + Transcript column */}
               <div className="flex flex-col flex-[2] gap-4 min-h-0">
@@ -95,16 +126,20 @@ const Dashboard = () => {
                     title={videoSource?.title || "AI Assistant Demo Video"}
                     src={videoSource?.src}
                     isProcessing={phase === "processing"}
+                    videoRef={videoElementRef}
                   />
                 </div>
                 <div className="flex-1 min-h-0">
-                  <Transcript />
-                </div>
+                <Transcript items={transcriptItems} />
+              </div>
               </div>
 
               {/* Chat column */}
               <div className="flex-[1] min-w-[260px] lg:max-w-sm xl:max-w-md min-h-0 flex">
-                <ChatPanel />
+                <ChatPanel
+                  videoId={videoId}
+                  onJumpToTimestamp={handleJumpToTimestamp}
+                />
               </div>
             </div>
           ) : (

@@ -9,8 +9,9 @@ const formatTime = (seconds) => {
   return `${mins}:${secs}`;
 };
 
-const VideoPlayer = ({ title, src, isProcessing }) => {
-  const videoRef = useRef(null);
+const VideoPlayer = ({ title, src, isProcessing, videoRef: externalRef }) => {
+  const internalRef = useRef(null);
+  const videoRef = externalRef || internalRef;
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const progress =
